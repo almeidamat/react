@@ -26,10 +26,16 @@ def get_db():
         db.close()
 
 
+#################################################################
+###########################   Movies   ##########################
+#################################################################
+
+
+
 @app.get("/movies/", response_model=List[schemas.Movie])
-def read_movies(skip: Optional[int] = 0, limit: Optional[int] = 100, db: Session = Depends(get_db)):
+def read_movies(skip: Optional[int] = 0, db: Session = Depends(get_db)):
     # read items from database
-    movies = crud.get_movies(db, skip=skip, limit=limit)
+    movies = crud.get_movies(db, skip=skip)
     # return them as json
     return movies
 
@@ -130,16 +136,43 @@ def read_count_movies_by_year(db: Session = Depends(get_db)) -> List[Tuple[int,i
 def read_stats_movies_by_year(db: Session = Depends(get_db)) -> List[Tuple[int,int,int,int,int]]:
     return crud.get_movies_min_max_moyenne_by_year(db=db)
 
+
+
+#################################################################
+###########################   Stars   ###########################
+#################################################################
+
+
+
+@app.post("/stars/", response_model=schemas.Star)
+def create_star(star: schemas.StarCreate, db: Session = Depends(get_db)):
+    # receive json movie without id and return json movie from database with new id
+    return crud.create_star(db=db, star=star)    
+@app.put("/stars/", response_model=schemas.Star)
+def update_star(star: schemas.Star, db: Session = Depends(get_db)):
+    db_star = crud.update_star(db, star=star)
+    if db_star is None:
+        raise HTTPException(status_code=404, detail="Star to update not found")
+    return db_star
+@app.delete("/stars/star_id}", response_model=schemas.Star)
+def delete_star(star_id: int, db: Session = Depends(get_db)):
+    db_star = crud.delete_star(db, star_id=star_id)
+    if db_star is None:
+        raise HTTPException(status_code=404, detail="Star to delete not found")
+    return db_star
+
 @app.get("/stars/stats_movie_by_director")
 def read_stats_movie_by_director(minc: Optional[int] = 10, db: Session = Depends(get_db)):
     return crud.get_stats_movie_by_director(db=db, min_count=minc)
 
-###Stars
+@app.get("/stars/stats_movie_by_stars")
+def read_stats_movie_by_stars(minc: Optional[int] = 10, db: Session = Depends(get_db)):
+    return crud.get_stats_movie_by_stars(db=db, min_count=minc)
 
 @app.get("/stars", response_model=List[schemas.Star])
-def read_stars(skip: Optional[int] = 0, limit: Optional[int] = 100, db: Session = Depends(get_db)):
+def read_stars(skip: Optional[int] = 0, db: Session = Depends(get_db)):
     # read items from database
-    stars = crud.get_stars(db, skip=skip, limit=limit)
+    stars = crud.get_stars(db, skip=skip)
     # return them as json
     return stars
 
@@ -167,6 +200,7 @@ def read_stars_by_birthyear(year: int, db: Session = Depends(get_db)):
     # read items from database
     stars = crud.get_stars_by_birthyear(db=db, year=year)
     return stars
+
 
 @app.get("/stars/count")
 def read_stars_count(db: Session = Depends(get_db)):

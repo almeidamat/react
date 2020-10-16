@@ -13,6 +13,7 @@ import models, schemas
 
 log=logging.getLogger()
 
+###Fonctions Movies
 
 def get_movie(db: Session, movie_id: int):
     # read from the database (get method read from cache)
@@ -21,8 +22,8 @@ def get_movie(db: Session, movie_id: int):
     log.debug('Movie retrieved from DB', db_movie.title, db_movie.director.name if db_movie.director is not None else "no director")
     return db_movie
 
-def get_movies(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Movie).offset(skip).limit(limit).all()
+def get_movies(db: Session, skip: int = 0):
+    return db.query(models.Movie).offset(skip).all()
 
 def get_movie_by_title(db: Session, movie_title: int):
     return db.query(models.Movie).filter(models.Movie.title.like('%'+movie_title+'%')).all()
@@ -146,7 +147,15 @@ def get_movies_count_by_year(db:Session):
     return db.query(models.Movie.year, func.count()).group_by(models.Movie.year).order_by(models.Movie.year).all()
 
 def get_movies_min_max_moyenne_by_year(db:Session):
-    return db.query(models.Movie.year, func.min(), func.max(), func.mean()).group_by(models.Movie.year).order_by(models.Movie.year).all()
+    query = db.query(models.Movie.year, 
+                    func.count().label("movie_count"),
+                    func.min(models.Movie.duration).label("min_duration"),
+                    func.max(models.Movie.duration).label("max_duration"),
+                    func.avg(models.Movie.duration).label("avg_duration"))  \
+        .group_by(models.Movie.year)     \
+        .order_by(models.Movie.year)   
+    return [ {'year':y, 'movie_count': mc, 'min_duration': mid, 'max_duration': mxd, 'avg_duration': ad} 
+            for y,mc,mid,mxd,ad in query ]
 
 def get_stats_movie_by_director(db: Session, min_count: int):
     return db.query(models.Star, func.count(models.Movie.id).label("movie_count"))  \
@@ -155,8 +164,45 @@ def get_stats_movie_by_director(db: Session, min_count: int):
         .having(func.count(models.Movie.id) >= min_count) \
         .order_by(desc("movie_count")) \
         .all()
+
+def get_stats_movie_by_stars(db: Session, min_count: int):
+    return db.query(models.Star, func.count(models.Movie.id).label("movie_count"), func.min(models.Movie.year), func.max(models.Movie.year))  \
+        .join(models.Movie.actors)        \
+        .group_by(models.Star)  \
+        .having(func.count(models.Movie.id) >= min_count) \
+        .order_by(desc("movie_count")) \
+        .all()
         
-###Stars
+###Fonctions Stars
+
+def create_star(db: Session, star: schemas.StarCreate):
+    # convert schema object from rest api to db model object
+    db_star = models.Star(name=star.name, birthdate=star.birthdate)
+    # add in db cache and force insert
+    db.add(db_star)
+    db.commit()
+    # retreive object from db (to read at least generated id)
+    db.refresh(db_star)
+    return db_star
+def update_star(db: Session, star: schemas.Star):
+    db_star = db.query(models.Star).filter(models.Star.id == star.id).first()
+    if db_star is not None:
+        # update data from db
+        db_star.name = star.name
+        db_star.birthdate = star.birthdate
+        # validate update in db
+        db.commit()
+    # return updated object or None if not found
+    return db_star
+def delete_star(db: Session, star_id: int):
+     db_star = db.query(models.Star).filter(models.Star.id == star_id).first()
+     if db_star is not None:
+         # delete object from ORM
+         db.delete(db_star)
+         # validate delete in db
+         db.commit()
+     # return deleted object or None if not found
+     return db_star
 
 def _get_stars_by_predicate(*predicate, db: Session):
     """ partial request to apply one or more predicate(s) to model Star"""
@@ -170,8 +216,8 @@ def get_star(db: Session, star_id: int):
     #return db.query(models.Star).get(1)
     #return schemas.Star(id=1, name="Fred")
 
-def get_stars(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Star).offset(skip).limit(limit).all()
+def get_stars(db: Session, skip: int = 0):
+    return db.query(models.Star).offset(skip).all()
 
 def get_stars_by_name(db: Session, name: str):
     return _get_stars_by_predicate(models.Star.name == name, db=db) \
@@ -187,7 +233,7 @@ def get_stars_by_birthyear(db: Session, year: int):
     return _get_stars_by_predicate(extract('year', models.Star.birthdate) == year, db=db) \
             .order_by(models.Star.name)  \
             .all()
-
+            
 def get_stars_count(db: Session):
     return db.query(models.Star).count()
 

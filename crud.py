@@ -118,6 +118,8 @@ def add_movie_actor(db:Session, movie_id:int, star_id:int):
         db_movie.actors.append(db_star)
         # validate update in db
         db.commit()
+    else:
+        return None
     return db_movie
 
 def update_movie_director(db: Session, movie_id: int, director_id: int):
@@ -134,10 +136,14 @@ def update_movie_director(db: Session, movie_id: int, director_id: int):
 
 def update_movie_actors(db: Session, movie_id: int, stars_id: list):
     db_movie = get_movie(db=db, movie_id=movie_id)
+    if db_movie is None:
+        return None
+    
     db_movie.actors=[]
     for star_id in stars_id:
         db_star =  get_star(db=db, star_id=star_id)
-        db_movie.actors.append(db_star)
+        if db_star is not None:
+            db_movie.actors.append(db_star)
     # commit transaction : update SQL
     db.commit()
     # return updated object
